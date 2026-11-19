@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Summary Header -->
+<div class="card">
+  <h2>Total Balance: ₹{{ "%.2f"|format(total_balance) }}</h2>
+  <p style="margin: 0; opacity: 0.8;">Open Fraud Alerts: {{ open_fraud_alerts }}</p>
+</div>
+
+<!-- Accounts List & Quick Deposit/Withdraw -->
+<div class="grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+  {% for acc in accounts %}
+  <div class="card">
+    <h3>{{ acc.account_type|title }} Account (#{{ acc.id }})</h3>
+    <p style="font-size: 1.4rem; font-weight: bold; margin: 0.5rem 0;">₹{{ "%.2f"|format(acc.balance) }}</p>
+
+    <form action="{{ url_for('deposit', account_id=acc.id) }}" method="POST" style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+      <input type="number" step="0.01" min="1" name="amount" placeholder="Deposit Amount (₹)" required>
+      <input type="text" name="category" placeholder="Category">
+      <button type="submit">Deposit</button>
+    </form>
+
+    <form action="{{ url_for('withdraw', account_id=acc.id) }}" method="POST" style="display: flex; gap: 0.5rem;">
+      <input type="number" step="0.01" min="1" name="amount" placeholder="Withdraw Amount (₹)" required>
+      <input type="text" name="category" placeholder="Category">
+      <button type="submit">Withdraw</button>
+    </form>
+  </div>
+  {% endfor %}
+
+  <!-- Open New Account -->
+  <div class="card">
+    <h3>Open New Account</h3>
+    <form action="{{ url_for('new_account') }}" method="POST" style="display: flex; flex-direction: column; gap: 0.75rem;">
+      <select name="account_type" required>
+        <option value="savings">Savings Account</option>
+        <option value="current">Current Account</option>
+      </select>
+      <button type="submit">Create Account</button>
+    </form>
+  </div>
+</div>
+
+<!-- Main Action Boxes (Clean: Heading + Inputs + Button Only) -->
+<div class="grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-top: 1rem;">
+
+  <!-- 1. Transfer Between Accounts -->
+  <div class="card">
+    <h3>Transfer Between Accounts</h3>
+    <form action="{{ url_for('transfer_between_accounts') }}" method="POST" style="display: flex; flex-direction: column; gap: 0.75rem;">
+      <select id="transfer-from" name="from_account_id" required>
+        <option value="" disabled selected>From Account</option>
+        {% for acc in accounts %}
+          <option value="{{ acc.id }}">{{ acc.account_type|title }} (#{{ acc.id }}) — ₹{{ "%.2f"|format(acc.balance) }}</option>
+        {% endfor %}
+      </select>
+
+      <select id="transfer-to" name="to_account_id" required>
+        <option value="" disabled selected>To Account</option>
+        {% for acc in accounts %}
+          <option value="{{ acc.id }}">{{ acc.account_type|title }} (#{{ acc.id }}) — ₹{{ "%.2f"|format(acc.balance) }}</option>
+        {% endfor %}
+      </select>
+
+      <input type="number" step="0.01" min="1" name="amount" placeholder="Amount (₹)" required>
+      <button type="submit">Transfer</button>
+    </form>
+  </div>
+
+  <!-- 2. Deposit via Stripe Checkout -->
+  <div class="card">
+    <h3>Deposit via Stripe Checkout</h3>
+    <form action="{{ url_for('stripe_deposit') }}" method="POST" style="display: flex; flex-direction: column; gap: 0.75rem;">
+      <select name="account_id" required {% if not accounts %}disabled{% endif %}>
+        <option value="" disabled selected>Select account</option>
+        {% for acc in accounts %}
+          <option value="{{ acc.id }}">{{ acc.account_type|title }} (#{{ acc.id }})</option>
+        {% endfor %}
+      </select>
+      <input type="number" step="0.01" min="0.01" name="amount" placeholder="Amount in INR (₹)" required {% if not accounts %}disabled{% endif %}>
+      <button type="submit" {% if not stripe_configured or not accounts %}disabled{% endif %}>Continue to Stripe Checkout</button>
+    </form>
+    {% if not stripe_configured %}
+      <p class="muted">Stripe deposits are unavailable until STRIPE_SECRET_KEY is configured in .env.</p>
+    {% endif %}
+  </div>
+
+  <!-- 3. Live Currency Exchange Rate Converter -->
+  <div class="card">
+    <h3>Live Currency Exchange Rate</h3>
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+      <input type="number" id="fx-amount" step="0.01" min="0.01" value="100" placeholder="Enter Amount" aria-label="Amount to convert">
+
+      <div style="display: flex; gap: 0.5rem;">
+        <select id="fx-from" style="flex: 1;">
+          <option value="INR" selected>INR</option>
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+          <option value="JPY">JPY</option>
+          <option value="CAD">CAD</option>
+          <option value="AUD">AUD</option>
+          <option value="SGD">SGD</option>
+          <option value="CHF">CHF</option>
+          <option value="CNY">CNY</option>
+          <option value="NZD">NZD</option>
+          <option value="SEK">SEK</option>
+          <option value="NOK">NOK</option>
+          <option value="DKK">DKK</option>
+          <option value="HKD">HKD</option>
+          <option value="KRW">KRW</option>
+          <option value="ZAR">ZAR</option>
+        </select>
+
+        <select id="fx-to" style="flex: 1;">
+          <option value="USD" selected>USD</option>
+          <option value="INR">INR</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+          <option value="JPY">JPY</option>
+          <option value="CAD">CAD</option>
+          <option value="AUD">AUD</option>
+          <option value="SGD">SGD</option>
+          <option value="CHF">CHF</option>
+          <option value="CNY">CNY</option>
+          <option value="NZD">NZD</option>
+          <option value="SEK">SEK</option>
+          <option value="NOK">NOK</option>
+          <option value="DKK">DKK</option>
+          <option value="HKD">HKD</option>
+          <option value="KRW">KRW</option>
+          <option value="ZAR">ZAR</option>
+        </select>
+      </div>
+
+      <button type="button" id="fx-convert">Convert Currency</button>
+      <div id="fx-result" aria-live="polite" style="font-weight: bold; min-height: 1.4rem;"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Recent Transactions Table -->
+<div class="card" style="margin-top: 1rem;">
+  <h3>Recent Transactions</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Account</th>
+        <th>Type</th>
+        <th>Category</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for txn in transactions %}
+      <tr>
+        <td>{{ txn.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>#{{ txn.account_id }}</td>
+        <td>{{ txn.type|title }}</td>
+        <td>{{ txn.category }}</td>
+        <td>₹{{ "%.2f"|format(txn.amount) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No transactions yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+const dashboardApiToken = {{ dashboard_api_token|tojson }};
+
+async function convertCurrency() {
+  const amount = Number(document.getElementById('fx-amount').value);
+  const fromCurr = document.getElementById('fx-from').value;
+  const toCurr = document.getElementById('fx-to').value;
+  const resultBox = document.getElementById('fx-result');
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    resultBox.textContent = "Enter a valid amount.";
+    return;
+  }
+  if (fromCurr === toCurr) {
+    resultBox.textContent = `${amount.toFixed(2)} ${fromCurr} = ${amount.toFixed(2)} ${toCurr} (same currency)`;
+    return;
+  }
+
+  resultBox.textContent = "Fetching rate...";
+  try {
+    const query = new URLSearchParams({ base: fromCurr, symbols: toCurr });
+    const res = await fetch(`/api/v1/integrations/currency?${query}`, {
+      headers: { "Authorization": `Bearer ${dashboardApiToken}` }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Currency provider is unavailable.");
+    }
+    const rate = Number(data.rates && data.rates[toCurr]);
+    if (!Number.isFinite(rate) || rate <= 0) {
+      throw new Error(`No current rate is available for ${fromCurr} to ${toCurr}.`);
+    }
+    const converted = (amount * rate).toFixed(2);
+    resultBox.textContent = `${amount.toFixed(2)} ${fromCurr} = ${converted} ${toCurr} (1 ${fromCurr} = ${rate.toFixed(4)} ${toCurr})`;
+  } catch (error) {
+    resultBox.textContent = error.message || "Could not fetch exchange rate.";
+  }
+}
+
+document.getElementById("fx-convert").addEventListener("click", convertCurrency);
+
+const transferFrom = document.getElementById("transfer-from");
+const transferTo = document.getElementById("transfer-to");
+transferFrom.addEventListener("change", () => {
+  const previous = transferTo.value;
+  Array.from(transferTo.options).forEach(option => {
+    if (option.value) option.disabled = option.value === transferFrom.value;
+  });
+  if (transferTo.value === transferFrom.value) transferTo.value = "";
+  if (previous && previous !== transferFrom.value) transferTo.value = previous;
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,36 @@
+PRODUCT 21 — SMART BANKING
+
+1. Extract this ZIP.
+2. Open the SmartBanking folder in VS Code.
+3. Open a terminal in this folder.
+4. Create environment:
+   Windows: py -3.11 -m venv .venv
+   Activate: .venv\\Scripts\\activate
+   macOS/Linux: python3 -m venv .venv && source .venv/bin/activate
+5. Install: pip install -r requirements.txt
+6. Copy .env.example to .env and set SECRET_KEY and JWT_SECRET_KEY.
+   To enable Stripe Checkout deposits, add a Stripe test secret key as STRIPE_SECRET_KEY.
+   The app loads .env on startup. Do not commit secrets.
+7. Run: python app.py
+8. Open: http://127.0.0.1:5000
+9. Test API: GET http://127.0.0.1:5000/api/v1/health
+
+Create an admin account using:
+   python make_admin.py
+Follow its prompts. Do not use a default admin password in a submission.
+
+Tests:
+   pytest -q
+
+Read API_GUIDE.md and PROJECT_STATUS_AND_2_DAY_PLAN.md before the demo.
+
+10. On the customer dashboard, verify:
+    - Transfers between your own accounts using account dropdowns.
+    - Frankfurter currency conversion using the From and To dropdowns.
+    - Stripe Checkout deposits using a configured test secret key.
+    - Payment order creation (Razorpay test keys or local mock sandbox).
+    - Notification test (SMTP send only if configured; otherwise simulated).
+
+Important: Stripe deposits are unavailable without STRIPE_SECRET_KEY. Accounts
+are credited only after Stripe confirms payment; no successful payment is simulated.
+Payment orders are not proof of payment; without Razorpay test credentials they are mock only.
