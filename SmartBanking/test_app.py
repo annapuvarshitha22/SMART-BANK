@@ -620,5 +620,19 @@ def test_stripe_deposit_verifies_payment_and_credits_once(client, monkeypatch):
     assert Transaction.query.filter_by(category="stripe_gateway").count() == 1
 
 
+def test_method_not_allowed_flashes_and_redirects_to_dashboard(client):
+    signup_and_login(client)
+
+    response = client.get("/accounts/new")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/dashboard")
+    with client.session_transaction() as session:
+        assert any(
+            "not available with this request method" in message
+            for _, message in session.get("_flashes", [])
+        )
+
+
 def current_customer_id():
     return User.query.filter_by(email="user@example.com").first().customer.id

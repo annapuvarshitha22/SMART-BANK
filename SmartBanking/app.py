@@ -47,6 +47,13 @@ def home():
 db.init_app(app)
 app.register_blueprint(api_blueprint)
 
+
+@app.errorhandler(405)
+def method_not_allowed(_error):
+    flash("That action is not available with this request method.", "error")
+    return redirect(url_for("dashboard"))
+
+
 login_manager = LoginManager()
 login_manager.login_view = "login"
 login_manager.init_app(app)
