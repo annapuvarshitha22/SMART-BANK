@@ -639,14 +639,35 @@ def test_large_deposit_alert_is_shown_on_customer_dashboard(client):
     open_account(client)
     account_id = all_accounts()[0].id
 
-    client.post(f"/accounts/{account_id}/deposit", data={"amount": "150000"})
+    client.post(f"/accounts/{account_id}/deposit", data={"amount": "15000000"})
 
     db.session.expire_all()
-    assert FraudAlert.query.filter_by(reason="Unusually large transaction amount").count() == 1
+    large_alert = FraudAlert.query.filter_by(
+        reason="Unusually large transaction amount", severity="high"
+    ).first()
+    assert large_alert is not None
     page = client.get("/dashboard").get_data(as_text=True)
     assert "Fraud Detection / Security Alerts" in page
     assert "Review recommended" in page
     assert "Unusually large transaction amount" in page
+    assert "Fraud Alert: High-risk transaction flagged and recorded for review." in page
+    assert "Deposited ₹15000000.00." not in page
+
+
+def test_large_withdrawal_flashes_fraud_warning(client):
+    signup_and_login(client)
+    open_account(client)
+    account = all_accounts()[0]
+    account.balance = 200000
+    db.session.commit()
+
+    client.post(f"/accounts/{account.id}/withdraw", data={"amount": "100000"})
+
+    db.session.expire_all()
+    assert FraudAlert.query.filter_by(severity="high").count() >= 1
+    page = client.get("/dashboard").get_data(as_text=True)
+    assert "Fraud Alert: High-risk transaction flagged and recorded for review." in page
+    assert "Withdrew ₹100000.00." not in page
 
 
 def test_transfers_run_fraud_checks_for_both_accounts(client):
@@ -674,6 +695,9 @@ def test_transfers_run_fraud_checks_for_both_accounts(client):
     }
     assert len(transfer_transactions) == 2
     assert {txn.id for txn in transfer_transactions} <= large_alert_transaction_ids
+    page = client.get("/dashboard").get_data(as_text=True)
+    assert "Fraud Alert: High-risk transaction flagged and recorded for review." in page
+    assert "Transferred ₹150000.00" not in page
 
 
 def current_customer_id():

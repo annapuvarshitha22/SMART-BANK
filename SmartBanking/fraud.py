@@ -8,9 +8,10 @@ RAPID_COUNT = 4
 
 
 def check_transaction_for_fraud(transaction):
-    """Rule-based fraud checks, run right after a transaction is committed."""
+    """Persist and return rule-based fraud alerts for a committed transaction."""
     reasons = []
 
+    # This threshold rule is independent of transaction history.
     if transaction.amount >= LARGE_AMOUNT_THRESHOLD:
         reasons.append(("Unusually large transaction amount", "high"))
 
@@ -26,8 +27,12 @@ def check_transaction_for_fraud(transaction):
     if hour < 5 or hour > 23:
         reasons.append(("Transaction at an unusual hour", "low"))
 
-    for reason, severity in reasons:
-        db.session.add(FraudAlert(transaction_id=transaction.id, reason=reason, severity=severity))
+    alerts = [
+        FraudAlert(transaction_id=transaction.id, reason=reason, severity=severity)
+        for reason, severity in reasons
+    ]
+    db.session.add_all(alerts)
 
-    if reasons:
+    if alerts:
         db.session.commit()
+    return alerts

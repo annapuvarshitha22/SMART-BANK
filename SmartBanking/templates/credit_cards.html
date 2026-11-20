@@ -4,7 +4,7 @@
 
 <div class="card">
     <h3>Issue a New Card</h3>
-    <form class="inline" method="POST">
+    <form class="inline" action="{{ url_for('credit_cards') }}" method="POST">
         <input type="number" step="0.01" name="credit_limit" placeholder="Credit limit" required>
         <button type="submit">Issue Card</button>
     </form>

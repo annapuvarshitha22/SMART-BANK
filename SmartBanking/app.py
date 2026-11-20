@@ -227,6 +227,19 @@ def _primary_account(customer):
     return Account.query.filter_by(customer_id=customer.id).order_by(Account.id).first()
 
 
+def _flash_transaction_result(success_message, alerts):
+    if not alerts:
+        flash(success_message, "success")
+        return
+
+    reasons = ", ".join(dict.fromkeys(alert.reason for alert in alerts))
+    severity = "High-risk " if any(alert.severity == "high" for alert in alerts) else ""
+    flash(
+        f"Fraud Alert: {severity}transaction flagged and recorded for review. {reasons}",
+        "error",
+    )
+
+
 @app.route("/accounts/<int:account_id>/deposit", methods=["POST"])
 @login_required
 def deposit(account_id):
@@ -245,9 +258,9 @@ def deposit(account_id):
     txn = Transaction(account_id=account.id, type="deposit", amount=amount, category=category)
     db.session.add(txn)
     db.session.commit()
-    check_transaction_for_fraud(txn)
+    alerts = check_transaction_for_fraud(txn)
 
-    flash(f"Deposited ₹{amount:.2f}.", "success")
+    _flash_transaction_result(f"Deposited ₹{amount:.2f}.", alerts)
     return redirect(url_for("dashboard"))
 
 
@@ -272,9 +285,9 @@ def withdraw(account_id):
     txn = Transaction(account_id=account.id, type="withdrawal", amount=amount, category=category)
     db.session.add(txn)
     db.session.commit()
-    check_transaction_for_fraud(txn)
+    alerts = check_transaction_for_fraud(txn)
 
-    flash(f"Withdrew ₹{amount:.2f}.", "success")
+    _flash_transaction_result(f"Withdrew ₹{amount:.2f}.", alerts)
     return redirect(url_for("dashboard"))
 
 
@@ -314,10 +327,12 @@ def transfer_between_accounts():
     txn_in = Transaction(account_id=to_acc.id, type="transfer_in", amount=amount, category="transfer")
     db.session.add_all([txn_out, txn_in])
     db.session.commit()
-    check_transaction_for_fraud(txn_out)
-    check_transaction_for_fraud(txn_in)
+    alerts = check_transaction_for_fraud(txn_out) + check_transaction_for_fraud(txn_in)
 
-    flash(f"Transferred ₹{amount:.2f} from #{from_acc.id} to #{to_acc.id}.", "success")
+    _flash_transaction_result(
+        f"Transferred ₹{amount:.2f} from #{from_acc.id} to #{to_acc.id}.",
+        alerts,
+    )
     return redirect(url_for("dashboard"))
 
 
@@ -437,8 +452,8 @@ def stripe_success():
                           category="stripe_gateway")
         db.session.add(txn)
         db.session.commit()
-        check_transaction_for_fraud(txn)
-        flash(f"Stripe payment of ₹{amount:.2f} verified and credited.", "success")
+        alerts = check_transaction_for_fraud(txn)
+        _flash_transaction_result(f"Stripe payment of ₹{amount:.2f} verified and credited.", alerts)
     else:
         flash("This Stripe payment has already been credited.", "success")
     return redirect(url_for("dashboard"))
@@ -498,10 +513,12 @@ def repay_loan(loan_id):
         loan.amount_repaid += amount
         if loan.amount_repaid >= loan.amount:
             loan.status = "closed"
-        db.session.add(Transaction(account_id=account.id, type="loan_repayment",
-                                   amount=amount, category="loan"))
+        txn = Transaction(account_id=account.id, type="loan_repayment",
+                          amount=amount, category="loan")
+        db.session.add(txn)
         db.session.commit()
-        flash("Loan repayment recorded.", "success")
+        alerts = check_transaction_for_fraud(txn)
+        _flash_transaction_result("Loan repayment recorded.", alerts)
     return redirect(url_for("loans"))
 
 
@@ -750,12 +767,17 @@ def update_loan_status(loan_id):
             return redirect(url_for("admin_dashboard"))
         loan.status = "approved"
         account.balance += loan.amount
-        db.session.add(Transaction(account_id=account.id, type="loan_disbursal",
-                                   amount=loan.amount, category="loan"))
+        txn = Transaction(account_id=account.id, type="loan_disbursal",
+                          amount=loan.amount, category="loan")
+        db.session.add(txn)
     else:
         if loan.status == "pending":
             loan.status = "rejected"
     db.session.commit()
+    if status == "approved":
+        alerts = check_transaction_for_fraud(txn)
+        if alerts:
+            _flash_transaction_result("Loan approved and disbursed.", alerts)
     return redirect(url_for("admin_dashboard"))
 
 
