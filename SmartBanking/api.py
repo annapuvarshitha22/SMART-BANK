@@ -242,6 +242,7 @@ def api_transfer():
     db.session.add_all([out_txn, in_txn])
     db.session.commit()
     check_transaction_for_fraud(out_txn)
+    check_transaction_for_fraud(in_txn)
     return jsonify({"success": True, "message": "Transfer completed.",
                     "source": account_json(source), "destination": account_json(target)}), 201
 

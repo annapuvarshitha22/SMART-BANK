@@ -7,6 +7,24 @@
   <p style="margin: 0; opacity: 0.8;">Open Fraud Alerts: {{ open_fraud_alerts }}</p>
 </div>
 
+<section class="card" aria-labelledby="fraud-alerts-heading">
+  <h3 id="fraud-alerts-heading">Fraud Detection / Security Alerts</h3>
+  <p>Status: <strong>{{ fraud_status }}</strong></p>
+  {% if recent_fraud_alerts %}
+  <ul>
+    {% for alert in recent_fraud_alerts %}
+    <li>
+      <span class="badge badge-{{ alert.severity }}">{{ alert.severity|title }}</span>
+      {{ alert.reason }}
+      <small> · {{ alert.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No recent security alerts for your accounts.</p>
+  {% endif %}
+</section>
+
 <!-- Accounts List & Quick Deposit/Withdraw -->
 <div class="grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
   {% for acc in accounts %}

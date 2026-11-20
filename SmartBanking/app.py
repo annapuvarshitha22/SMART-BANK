@@ -167,6 +167,15 @@ def dashboard():
         if account_ids
         else 0
     )
+    recent_fraud_alerts = (
+        FraudAlert.query.join(Transaction)
+        .filter(Transaction.account_id.in_(account_ids), FraudAlert.resolved.is_(False))
+        .order_by(FraudAlert.created_at.desc())
+        .limit(5)
+        .all()
+        if account_ids
+        else []
+    )
     dashboard_api_token = issue_token(current_user)
 
     return render_template(
@@ -176,6 +185,8 @@ def dashboard():
         total_balance=total_balance,
         recent_orders=recent_orders,
         open_fraud_alerts=open_fraud_alerts,
+        recent_fraud_alerts=recent_fraud_alerts,
+        fraud_status="Review recommended" if open_fraud_alerts else "No active alerts",
         dashboard_api_token=dashboard_api_token,
         razorpay_configured=bool(os.environ.get("RAZORPAY_KEY_ID") and os.environ.get("RAZORPAY_KEY_SECRET")),
         jwt_secret_configured=bool(os.environ.get("JWT_SECRET_KEY")),
@@ -304,6 +315,7 @@ def transfer_between_accounts():
     db.session.add_all([txn_out, txn_in])
     db.session.commit()
     check_transaction_for_fraud(txn_out)
+    check_transaction_for_fraud(txn_in)
 
     flash(f"Transferred ₹{amount:.2f} from #{from_acc.id} to #{to_acc.id}.", "success")
     return redirect(url_for("dashboard"))

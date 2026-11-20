@@ -634,5 +634,47 @@ def test_method_not_allowed_flashes_and_redirects_to_dashboard(client):
         )
 
 
+def test_large_deposit_alert_is_shown_on_customer_dashboard(client):
+    signup_and_login(client)
+    open_account(client)
+    account_id = all_accounts()[0].id
+
+    client.post(f"/accounts/{account_id}/deposit", data={"amount": "150000"})
+
+    db.session.expire_all()
+    assert FraudAlert.query.filter_by(reason="Unusually large transaction amount").count() == 1
+    page = client.get("/dashboard").get_data(as_text=True)
+    assert "Fraud Detection / Security Alerts" in page
+    assert "Review recommended" in page
+    assert "Unusually large transaction amount" in page
+
+
+def test_transfers_run_fraud_checks_for_both_accounts(client):
+    signup_and_login(client)
+    open_account(client, "savings")
+    open_account(client, "current")
+    source, destination = all_accounts()
+    source.balance = 200000
+    db.session.commit()
+
+    client.post("/transfer", data={
+        "from_account_id": source.id,
+        "to_account_id": destination.id,
+        "amount": "150000",
+    })
+
+    db.session.expire_all()
+    transfer_transactions = Transaction.query.filter(
+        Transaction.account_id.in_((source.id, destination.id)),
+        Transaction.type.in_(("transfer_out", "transfer_in")),
+    ).all()
+    large_alert_transaction_ids = {
+        alert.transaction_id
+        for alert in FraudAlert.query.filter_by(reason="Unusually large transaction amount").all()
+    }
+    assert len(transfer_transactions) == 2
+    assert {txn.id for txn in transfer_transactions} <= large_alert_transaction_ids
+
+
 def current_customer_id():
     return User.query.filter_by(email="user@example.com").first().customer.id
